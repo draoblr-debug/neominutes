@@ -37,7 +37,7 @@ async function startServer() {
       }
 
       const { discoverAuthorizationServerMetadata, registerClient } = await import("@modelcontextprotocol/sdk/client/auth.js");
-+      const authServerUrl = process.env.NEOSAPIEN_MCP_URL || "https://api.neosapien.xyz/mcp";
+      const authServerUrl = process.env.NEOSAPIEN_MCP_URL || "https://api.neosapien.xyz/mcp";
       const meta = await discoverAuthorizationServerMetadata(authServerUrl);
       const clientInfo = await registerClient(authServerUrl, {
         metadata: meta,

@@ -1,0 +1,6 @@
+{
+  "name": "Meeting Minutes Tracker",
+  "description": "Automatically summarize audio recordings, extract action items, and email minutes to participants.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

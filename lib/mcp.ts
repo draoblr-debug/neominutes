@@ -150,7 +150,7 @@ export async function extractMinutes(params: {
   };
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.6-flash",
     contents: [
       "Please analyze the following transcript/summary from Neosapien and extract the speakers, a comprehensive summary, and action items.\n\n" + rawText,
     ],

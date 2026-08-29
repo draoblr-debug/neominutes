@@ -83,21 +83,92 @@ async function createMcpClient(apiKey?: string) {
   return client;
 }
 
+// Tool results come back as MCP content blocks (usually [{type:"text", text:"...json..."}]);
+// this pulls out the first block that parses as JSON.
+function parseToolResult(result: any): any {
+  const blocks = (result?.content as any[]) || [];
+  for (const block of blocks) {
+    const raw = block?.text ?? block?.json;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        continue;
+      }
+    } else if (raw && typeof raw === "object") {
+      return raw;
+    }
+  }
+  return null;
+}
+
+export interface RecentConversation {
+  id: string;
+  title: string;
+  summary: string;
+  participants: string[];
+  topics: string[];
+  startedAt?: string;
+}
+
+// Neosapien exposes memories through MCP tools (search_memories / list_all_memories),
+// not through MCP "resources" — so recent conversations have to be pulled with a tool call.
+async function fetchRecentConversations(client: any, tools: any[]): Promise<RecentConversation[]> {
+  const toolName = tools.find((t) => t.name === "search_memories")
+    ? "search_memories"
+    : tools.find((t) => t.name === "list_all_memories")
+    ? "list_all_memories"
+    : null;
+  if (!toolName) return [];
+
+  try {
+    const result = await client.callTool({ name: toolName, arguments: { limit: 5, sort_by: "created_at", sort_order: "desc" } });
+    const parsed = parseToolResult(result);
+    const items: any[] = parsed?.items || parsed?.memories || (Array.isArray(parsed) ? parsed : []);
+    return items.slice(0, 5).map((it) => {
+      const m = it.memory || it;
+      return {
+        id: m._id || m.id,
+        title: m.title || "Untitled conversation",
+        summary: m.summary || "",
+        participants: m.participants || [],
+        topics: m.topics || [],
+        startedAt: m.started_at || m.created_at,
+      };
+    });
+  } catch (e) {
+    console.error("Failed to fetch recent conversations:", e);
+    return [];
+  }
+}
+
 export async function connectMcp(apiKey?: string) {
   const client = await createMcpClient(apiKey);
-  const resources = await client.listResources();
+  // Not every MCP server implements resources/list — don't let that fail the whole connection.
+  const resources = await client.listResources().catch(() => ({ resources: [] as any[] }));
   const tools = await client.listTools();
-  return { resources: resources.resources, tools: tools.tools };
+  const conversations = await fetchRecentConversations(client, tools.tools);
+  return { resources: resources.resources, tools: tools.tools, conversations };
 }
 
 export async function extractMinutes(params: {
   resourceUri?: string;
   toolName?: string;
   textContent?: string;
+  memoryContext?: { title?: string; summary?: string; topics?: string[]; participants?: string[] };
   apiKey?: string;
 }) {
-  const { resourceUri, toolName, apiKey } = params;
+  const { resourceUri, toolName, memoryContext, apiKey } = params;
   let rawText = params.textContent || "";
+
+  if (!rawText && memoryContext) {
+    rawText = [
+      memoryContext.title ? `Title: ${memoryContext.title}` : "",
+      memoryContext.participants?.length ? `Participants: ${memoryContext.participants.join(", ")}` : "",
+      memoryContext.topics?.length ? `Topics: ${memoryContext.topics.join(", ")}` : "",
+      memoryContext.summary ? `Summary: ${memoryContext.summary}` : "",
+    ].filter(Boolean).join("\n");
+  }
 
   if (!rawText) {
     const client = await createMcpClient(apiKey);
@@ -109,7 +180,7 @@ export async function extractMinutes(params: {
       const toolResult = await client.callTool({ name: toolName, arguments: {} });
       rawText = (toolResult.content as any[]).map((c: any) => c.text || JSON.stringify(c)).join("\n");
     } else {
-      throw new Error("No resource URI or tool name provided");
+      throw new Error("No resource URI, tool name, or memory context provided");
     }
   }
 

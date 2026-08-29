@@ -20,6 +20,7 @@ export default function App() {
   // MCP State
   const [mcpKey, setMcpKey] = useState(sessionStorage.getItem("mcp_access_token") || "");
   const [mcpResources, setMcpResources] = useState<any[]>([]);
+  const [mcpConversations, setMcpConversations] = useState<any[]>([]);
   const [mcpTools, setMcpTools] = useState<any[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -75,6 +76,7 @@ export default function App() {
           if (!res.ok) throw new Error(data.error || "Failed to connect to MCP");
           setMcpResources(data.resources || []);
           setMcpTools(data.tools || []);
+          setMcpConversations(data.conversations || []);
           setIsConnected(true);
         });
       })
@@ -138,6 +140,7 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || "Failed to connect to MCP");
       setMcpResources(data.resources || []);
       setMcpTools(data.tools || []);
+      setMcpConversations(data.conversations || []);
       setIsConnected(true);
     } catch (err: any) {
       setError(err.message);
@@ -146,7 +149,8 @@ export default function App() {
     }
   };
 
-  const extractFromMcp = async (resourceUri?: string, toolName?: string) => {
+  const extractFromMcp = async (opts: { resourceUri?: string; toolName?: string; memoryContext?: any }) => {
+    const { resourceUri, toolName, memoryContext } = opts;
     setIsProcessing(true);
     setError(null);
     setMinutes(null);
@@ -157,7 +161,7 @@ export default function App() {
       const res = await fetch("/api/mcp/extract-minutes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resourceUri, toolName, apiKey: mcpKey }),
+        body: JSON.stringify({ resourceUri, toolName, memoryContext, apiKey: mcpKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to extract minutes");
@@ -337,6 +341,7 @@ export default function App() {
                         setIsConnected(false);
                         setMcpResources([]);
                         setMcpTools([]);
+                        setMcpConversations([]);
                       }}
                       className="text-xs font-medium text-green-800 hover:text-green-900 underline"
                     >
@@ -355,7 +360,7 @@ export default function App() {
                         {mcpTools.map((tool: any, idx) => (
                           <button
                             key={idx}
-                            onClick={() => { extractFromMcp(undefined, tool.name); setSettingsOpen(false); }}
+                            onClick={() => { extractFromMcp({ toolName: tool.name }); setSettingsOpen(false); }}
                             disabled={isProcessing}
                             className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
                           >
@@ -406,22 +411,22 @@ export default function App() {
                 Latest conversations
               </h2>
 
-              {mcpResources.length === 0 ? (
+              {mcpConversations.length === 0 ? (
                 <p className="text-xs text-neutral-500 italic">No conversations found on your Neosapien account yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {mcpResources.slice(0, 5).map((res: any, idx) => (
+                  {mcpConversations.slice(0, 5).map((conv: any, idx) => (
                     <button
-                      key={idx}
-                      onClick={() => extractFromMcp(res.uri, undefined)}
+                      key={conv.id || idx}
+                      onClick={() => extractFromMcp({ memoryContext: conv })}
                       disabled={isProcessing}
                       className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
                     >
                       <span className="font-medium text-neutral-900 flex items-center gap-1.5">
                         <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
-                        {res.name || "Conversation"}
+                        {conv.title || "Conversation"}
                       </span>
-                      {res.description && <span className="text-xs text-neutral-500 line-clamp-1">{res.description}</span>}
+                      {conv.summary && <span className="text-xs text-neutral-500 line-clamp-1">{conv.summary}</span>}
                     </button>
                   ))}
                 </div>

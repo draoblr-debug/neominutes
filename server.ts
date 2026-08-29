@@ -48,8 +48,8 @@ async function startServer() {
   // POST /api/mcp/extract-minutes
   app.post("/api/mcp/extract-minutes", async (req, res) => {
     try {
-      const { resourceUri, toolName, textContent, apiKey } = req.body;
-      const minutes = await extractMinutes({ resourceUri, toolName, textContent, apiKey });
+      const { resourceUri, toolName, textContent, memoryContext, apiKey } = req.body;
+      const minutes = await extractMinutes({ resourceUri, toolName, textContent, memoryContext, apiKey });
       res.json(minutes);
     } catch (error: any) {
       console.error("Extraction error:", error);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, UploadCloud, Users, Mail, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare, Menu, X, Settings } from "lucide-react";
+import { Mic, UploadCloud, Users, Mail, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare, Menu, X, Settings, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "./lib/utils";
 import type { MeetingMinutes, ActionItem } from "./types";
@@ -21,6 +21,10 @@ export default function App() {
   const [mcpKey, setMcpKey] = useState(sessionStorage.getItem("mcp_access_token") || "");
   const [mcpResources, setMcpResources] = useState<any[]>([]);
   const [mcpConversations, setMcpConversations] = useState<any[]>([]);
+  const [conversationsQuery, setConversationsQuery] = useState("");
+  const [conversationsPage, setConversationsPage] = useState(1);
+  const [conversationsTotalPages, setConversationsTotalPages] = useState(1);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [mcpTools, setMcpTools] = useState<any[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -76,7 +80,9 @@ export default function App() {
           if (!res.ok) throw new Error(data.error || "Failed to connect to MCP");
           setMcpResources(data.resources || []);
           setMcpTools(data.tools || []);
-          setMcpConversations(data.conversations || []);
+          setMcpConversations(data.conversations?.items || []);
+          setConversationsPage(data.conversations?.page || 1);
+          setConversationsTotalPages(data.conversations?.totalPages || 1);
           setIsConnected(true);
         });
       })
@@ -140,12 +146,35 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || "Failed to connect to MCP");
       setMcpResources(data.resources || []);
       setMcpTools(data.tools || []);
-      setMcpConversations(data.conversations || []);
+      setMcpConversations(data.conversations?.items || []);
+      setConversationsPage(data.conversations?.page || 1);
+      setConversationsTotalPages(data.conversations?.totalPages || 1);
       setIsConnected(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsConnecting(false);
+    }
+  };
+
+  const loadConversations = async (page: number, query?: string) => {
+    setIsLoadingConversations(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mcp/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query ?? conversationsQuery, page, limit: 5, apiKey: mcpKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load conversations");
+      setMcpConversations(data.items || []);
+      setConversationsPage(data.page || page);
+      setConversationsTotalPages(data.totalPages || 1);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoadingConversations(false);
     }
   };
 
@@ -342,6 +371,9 @@ export default function App() {
                         setMcpResources([]);
                         setMcpTools([]);
                         setMcpConversations([]);
+                        setConversationsQuery("");
+                        setConversationsPage(1);
+                        setConversationsTotalPages(1);
                       }}
                       className="text-xs font-medium text-green-800 hover:text-green-900 underline"
                     >
@@ -408,14 +440,33 @@ export default function App() {
             <section className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
               <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
                 <Server className="w-4 h-4 text-neutral-500" />
-                Latest conversations
+                Conversations
               </h2>
 
-              {mcpConversations.length === 0 ? (
-                <p className="text-xs text-neutral-500 italic">No conversations found on your Neosapien account yet.</p>
+              <form
+                onSubmit={(e) => { e.preventDefault(); loadConversations(1); }}
+                className="relative mb-4"
+              >
+                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={conversationsQuery}
+                  onChange={(e) => setConversationsQuery(e.target.value)}
+                  placeholder="Search conversations..."
+                  className="w-full pl-8 pr-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-shadow"
+                />
+              </form>
+
+              {isLoadingConversations ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-neutral-500 p-6 border border-dashed rounded-lg bg-neutral-50">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading conversations...
+                </div>
+              ) : mcpConversations.length === 0 ? (
+                <p className="text-xs text-neutral-500 italic">No conversations found.</p>
               ) : (
                 <div className="space-y-2">
-                  {mcpConversations.slice(0, 5).map((conv: any, idx) => (
+                  {mcpConversations.map((conv: any, idx) => (
                     <button
                       key={conv.id || idx}
                       onClick={() => extractFromMcp({ memoryContext: conv })}
@@ -429,6 +480,28 @@ export default function App() {
                       {conv.summary && <span className="text-xs text-neutral-500 line-clamp-1">{conv.summary}</span>}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {!isLoadingConversations && mcpConversations.length > 0 && (
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-100">
+                  <button
+                    onClick={() => loadConversations(conversationsPage - 1)}
+                    disabled={conversationsPage <= 1}
+                    className="text-xs font-medium text-neutral-600 hover:text-neutral-900 disabled:text-neutral-300 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Prev
+                  </button>
+                  <span className="text-xs text-neutral-400">Page {conversationsPage} of {conversationsTotalPages}</span>
+                  <button
+                    onClick={() => loadConversations(conversationsPage + 1)}
+                    disabled={conversationsPage >= conversationsTotalPages}
+                    className="text-xs font-medium text-neutral-600 hover:text-neutral-900 disabled:text-neutral-300 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    Next
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 

@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { registerOAuthClient, exchangeToken, connectMcp, extractMinutes, sendMinutesEmail } from "./lib/mcp.js";
+import { registerOAuthClient, exchangeToken, connectMcp, extractMinutes, sendMinutesEmail, searchConversations } from "./lib/mcp.js";
 
 async function startServer() {
   const app = express();
@@ -42,6 +42,18 @@ async function startServer() {
     } catch (error: any) {
       console.error("MCP connection error:", error);
       res.status(500).json({ error: error.message || "Failed to connect to MCP server" });
+    }
+  });
+
+  // POST /api/mcp/conversations
+  app.post("/api/mcp/conversations", async (req, res) => {
+    try {
+      const { query, page, limit, apiKey } = req.body;
+      const result = await searchConversations(apiKey, { query, page, limit });
+      res.json(result);
+    } catch (error: any) {
+      console.error("Conversation search error:", error);
+      res.status(500).json({ error: error.message || "Failed to search conversations" });
     }
   });
 

@@ -111,34 +111,55 @@ export interface RecentConversation {
   startedAt?: string;
 }
 
+export interface ConversationsPage {
+  items: RecentConversation[];
+  page: number;
+  totalPages: number;
+  totalFound: number;
+}
+
+function toRecentConversation(it: any): RecentConversation {
+  const m = it.memory || it;
+  return {
+    id: m._id || m.id,
+    title: m.title || "Untitled conversation",
+    summary: m.summary || "",
+    participants: m.participants || [],
+    topics: m.topics || [],
+    startedAt: m.started_at || m.created_at,
+  };
+}
+
 // Neosapien exposes memories through MCP tools (search_memories / list_all_memories),
-// not through MCP "resources" — so recent conversations have to be pulled with a tool call.
-async function fetchRecentConversations(client: any, tools: any[]): Promise<RecentConversation[]> {
-  const toolName = tools.find((t) => t.name === "search_memories")
-    ? "search_memories"
-    : tools.find((t) => t.name === "list_all_memories")
-    ? "list_all_memories"
-    : null;
-  if (!toolName) return [];
+// not through MCP "resources" — so conversations have to be pulled with a tool call.
+export async function searchConversations(
+  apiKey: string | undefined,
+  params: { query?: string; page?: number; limit?: number }
+): Promise<ConversationsPage> {
+  const { query, page = 1, limit = 5 } = params;
+  const empty: ConversationsPage = { items: [], page: 1, totalPages: 1, totalFound: 0 };
+
+  const client = await createMcpClient(apiKey);
+  const tools = await client.listTools();
+  const toolName = tools.tools.find((t) => t.name === "search_memories") ? "search_memories" : null;
+  if (!toolName) return empty;
 
   try {
-    const result = await client.callTool({ name: toolName, arguments: { limit: 5, sort_by: "created_at", sort_order: "desc" } });
+    const args: Record<string, any> = { limit, page, sort_by: "created_at", sort_order: "desc" };
+    if (query) args.query = query;
+
+    const result = await client.callTool({ name: toolName, arguments: args });
     const parsed = parseToolResult(result);
-    const items: any[] = parsed?.items || parsed?.memories || (Array.isArray(parsed) ? parsed : []);
-    return items.slice(0, 5).map((it) => {
-      const m = it.memory || it;
-      return {
-        id: m._id || m.id,
-        title: m.title || "Untitled conversation",
-        summary: m.summary || "",
-        participants: m.participants || [],
-        topics: m.topics || [],
-        startedAt: m.started_at || m.created_at,
-      };
-    });
+    const rawItems: any[] = parsed?.items || parsed?.memories || (Array.isArray(parsed) ? parsed : []);
+    return {
+      items: rawItems.map(toRecentConversation),
+      page: parsed?.page || page,
+      totalPages: parsed?.total_pages || 1,
+      totalFound: parsed?.total_found ?? rawItems.length,
+    };
   } catch (e) {
-    console.error("Failed to fetch recent conversations:", e);
-    return [];
+    console.error("Failed to search conversations:", e);
+    return empty;
   }
 }
 
@@ -147,7 +168,7 @@ export async function connectMcp(apiKey?: string) {
   // Not every MCP server implements resources/list — don't let that fail the whole connection.
   const resources = await client.listResources().catch(() => ({ resources: [] as any[] }));
   const tools = await client.listTools();
-  const conversations = await fetchRecentConversations(client, tools.tools);
+  const conversations = await searchConversations(apiKey, { page: 1, limit: 5 });
   return { resources: resources.resources, tools: tools.tools, conversations };
 }
 

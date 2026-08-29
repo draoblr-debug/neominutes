@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, UploadCloud, Users, Mail, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare, Menu, X, Settings, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Mic, UploadCloud, Users, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare, Menu, X, Settings, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "./lib/utils";
 import type { MeetingMinutes, ActionItem } from "./types";
@@ -33,11 +33,6 @@ export default function App() {
   // Speaker Mapping State
   const [speakerMapping, setSpeakerMapping] = useState<Record<string, string>>({});
 
-  // Emailing State
-  const [emails, setEmails] = useState<string[]>([]);
-  const [emailInput, setEmailInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [sendSuccess, setSendSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isExchanging = useRef(false);
 
@@ -184,7 +179,6 @@ export default function App() {
     setError(null);
     setMinutes(null);
     setSpeakerMapping({});
-    setSendSuccess(false);
 
     try {
       const res = await fetch("/api/mcp/extract-minutes", {
@@ -242,58 +236,6 @@ export default function App() {
         speakers: newSpeakers
       });
       setSpeakerMapping({});
-    }
-  };
-
-  const handleAddEmail = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      const val = emailInput.trim();
-      if (val && /^\S+@\S+\.\S+$/.test(val)) {
-        if (!emails.includes(val)) {
-          setEmails([...emails, val]);
-        }
-        setEmailInput("");
-      } else {
-        setError("Please enter a valid email address.");
-      }
-    }
-  };
-
-  const removeEmail = (emailToRemove: string) => {
-    setEmails(emails.filter((e) => e !== emailToRemove));
-  };
-
-  const sendEmail = async () => {
-    if (!minutes) return;
-    if (emails.length === 0) {
-      setError("Please add at least one email recipient.");
-      return;
-    }
-    
-    setIsSending(true);
-    setError(null);
-    setSendSuccess(false);
-
-    try {
-      const res = await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          minutes,
-          recipients: emails,
-          subject: "Meeting Minutes & Action Items",
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send email");
-      
-      setSendSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -514,65 +456,6 @@ export default function App() {
             </section>
           )}
 
-          <section className={cn("bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm transition-opacity", !minutes && "opacity-50 pointer-events-none")}>
-             <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Users className="w-4 h-4 text-neutral-500" />
-              Distribution List
-            </h2>
-            
-            <div className="space-y-4">
-              <div>
-                <input
-                  type="email"
-                  value={emailInput}
-                  onChange={(e) => {
-                    setEmailInput(e.target.value);
-                    setError(null);
-                  }}
-                  onKeyDown={handleAddEmail}
-                  placeholder="Enter email & press enter..."
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-shadow"
-                />
-              </div>
-
-              {emails.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {emails.map((email) => (
-                    <div key={email} className="inline-flex items-center gap-1.5 bg-neutral-100 px-2.5 py-1 rounded-md text-xs font-medium text-neutral-700">
-                      {email}
-                      <button onClick={() => removeEmail(email)} className="text-neutral-400 hover:text-neutral-900">
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={sendEmail}
-              disabled={isSending || emails.length === 0}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white font-medium py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-            >
-              {isSending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Sending...
-                </>
-              ) : sendSuccess ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Sent Successfully
-                </>
-              ) : (
-                <>
-                  <Mail className="w-4 h-4" />
-                  Send to {emails.length} Participants
-                </>
-              )}
-            </button>
-          </section>
-          
           {error && (
             <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">
               {error}

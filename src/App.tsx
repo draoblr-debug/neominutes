@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, UploadCloud, Users, Mail, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare } from "lucide-react";
+import { Mic, UploadCloud, Users, Mail, Loader2, FileAudio, CheckCircle2, UserPlus, ArrowRight, RefreshCw, Server, MessageSquare, Menu, X, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "./lib/utils";
 import type { MeetingMinutes, ActionItem } from "./types";
@@ -23,6 +23,7 @@ export default function App() {
   const [mcpTools, setMcpTools] = useState<any[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Speaker Mapping State
   const [speakerMapping, setSpeakerMapping] = useState<Record<string, string>>({});
@@ -270,120 +271,175 @@ export default function App() {
           <div className="p-2 bg-neutral-100 rounded-lg">
             <Mic className="w-5 h-5 text-neutral-700" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold text-neutral-900">Meeting Minutes Tracker</h1>
-            <p className="text-xs text-neutral-500">Connected to Neosapien MCP Server</p>
+            <p className="text-xs text-neutral-500 flex items-center gap-1.5">
+              <span className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-green-500" : "bg-neutral-300")}></span>
+              {isConnected ? "Connected to Neosapien" : "Not connected to Neosapien"}
+            </p>
           </div>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open settings"
+            className="p-2 hover:bg-neutral-100 rounded-lg text-neutral-600 hover:text-neutral-900 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-6 md:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Column: Data Source & Participants */}
-        <div className="lg:col-span-4 space-y-6">
-          <section className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Server className="w-4 h-4 text-neutral-500" />
-              1. Neosapien Connection
-            </h2>
-            
-            {!isConnected ? (
-              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-neutral-200 rounded-xl bg-neutral-50/50 text-center">
-                <Server className="w-8 h-8 text-neutral-400 mb-3" />
-                <p className="text-sm font-medium text-neutral-700">Not Connected</p>
-                <p className="text-xs text-neutral-500 mt-1 mb-4">Connect to the Neosapien MCP server to load transcripts and summaries.</p>
+      {/* Settings Drawer: Neosapien connection lives here, out of the main flow */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-30 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSettingsOpen(false)} />
+          <div className="relative w-full max-w-sm h-full bg-white shadow-xl border-l border-neutral-200 p-6 overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Settings className="w-4 h-4 text-neutral-500" />
+                Settings
+              </h2>
+              <button onClick={() => setSettingsOpen(false)} aria-label="Close settings" className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-500">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-                <button
-                  onClick={connectToMcp}
-                  disabled={isConnecting}
-                  className="bg-neutral-900 w-full hover:bg-neutral-800 disabled:bg-neutral-300 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Connect to Neosapien"}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Connected to MCP Server
-                  </div>
+            <section>
+              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Server className="w-4 h-4 text-neutral-500" />
+                Neosapien Connection
+              </h3>
+
+              {!isConnected ? (
+                <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-neutral-200 rounded-xl bg-neutral-50/50 text-center">
+                  <Server className="w-8 h-8 text-neutral-400 mb-3" />
+                  <p className="text-sm font-medium text-neutral-700">Not Connected</p>
+                  <p className="text-xs text-neutral-500 mt-1 mb-4">Connect to the Neosapien MCP server to load transcripts and summaries.</p>
+
                   <button
-                    onClick={() => {
-                      sessionStorage.removeItem("mcp_access_token");
-                      setMcpKey("");
-                      setIsConnected(false);
-                      setMcpResources([]);
-                      setMcpTools([]);
-                    }}
-                    className="text-xs font-medium text-green-800 hover:text-green-900 underline"
+                    onClick={connectToMcp}
+                    disabled={isConnecting}
+                    className="bg-neutral-900 w-full hover:bg-neutral-800 disabled:bg-neutral-300 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
                   >
-                    Disconnect
+                    {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Connect to Neosapien"}
                   </button>
                 </div>
-                
-                {mcpResources.length === 0 && mcpTools.length === 0 && (
-                  <p className="text-xs text-neutral-500 italic">No resources or tools found on server.</p>
-                )}
-
-                {mcpResources.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Available Transcripts</h3>
-                    <div className="space-y-2">
-                      {mcpResources.map((res: any, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => extractFromMcp(res.uri, undefined)}
-                          disabled={isProcessing}
-                          className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
-                        >
-                          <span className="font-medium text-neutral-900 flex items-center gap-1.5">
-                            <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
-                            {res.name || "Conversation"}
-                          </span>
-                          {res.description && <span className="text-xs text-neutral-500 line-clamp-1">{res.description}</span>}
-                        </button>
-                      ))}
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Connected to MCP Server
                     </div>
+                    <button
+                      onClick={() => {
+                        sessionStorage.removeItem("mcp_access_token");
+                        setMcpKey("");
+                        setIsConnected(false);
+                        setMcpResources([]);
+                        setMcpTools([]);
+                      }}
+                      className="text-xs font-medium text-green-800 hover:text-green-900 underline"
+                    >
+                      Disconnect
+                    </button>
                   </div>
-                )}
 
-                {mcpTools.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Extraction Tools</h3>
-                    <div className="space-y-2">
-                      {mcpTools.map((tool: any, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => extractFromMcp(undefined, tool.name)}
-                          disabled={isProcessing}
-                          className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
-                        >
-                          <span className="font-medium text-neutral-900 flex items-center gap-1.5">
-                            <Server className="w-3.5 h-3.5 text-neutral-500" />
-                            {tool.name}
-                          </span>
-                          {tool.description && <span className="text-xs text-neutral-500 line-clamp-1">{tool.description}</span>}
-                        </button>
-                      ))}
+                  {mcpResources.length === 0 && mcpTools.length === 0 && (
+                    <p className="text-xs text-neutral-500 italic">No resources or tools found on server.</p>
+                  )}
+
+                  {mcpTools.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Extraction Tools</h4>
+                      <div className="space-y-2">
+                        {mcpTools.map((tool: any, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => { extractFromMcp(undefined, tool.name); setSettingsOpen(false); }}
+                            disabled={isProcessing}
+                            className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
+                          >
+                            <span className="font-medium text-neutral-900 flex items-center gap-1.5">
+                              <Server className="w-3.5 h-3.5 text-neutral-500" />
+                              {tool.name}
+                            </span>
+                            {tool.description && <span className="text-xs text-neutral-500 line-clamp-1">{tool.description}</span>}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                
-                {isProcessing && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-neutral-500 mt-4 p-4 border border-dashed rounded-lg bg-neutral-50">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Extracting & Analyzing...
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      )}
+
+      <main className="max-w-5xl mx-auto p-6 md:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+        {/* Left Column: Recent Conversations & Participants */}
+        <div className="lg:col-span-4 space-y-6">
+          {!isConnected ? (
+            <section className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Server className="w-4 h-4 text-neutral-500" />
+                Recent conversations
+              </h2>
+              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-neutral-200 rounded-xl bg-neutral-50/50 text-center">
+                <Server className="w-8 h-8 text-neutral-400 mb-3" />
+                <p className="text-sm font-medium text-neutral-700">Not connected</p>
+                <p className="text-xs text-neutral-500 mt-1 mb-4">Connect your Neosapien account from settings to see your latest conversations here.</p>
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  Open settings
+                </button>
               </div>
-            )}
-          </section>
+            </section>
+          ) : (
+            <section className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+              <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Server className="w-4 h-4 text-neutral-500" />
+                Latest conversations
+              </h2>
+
+              {mcpResources.length === 0 ? (
+                <p className="text-xs text-neutral-500 italic">No conversations found on your Neosapien account yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {mcpResources.slice(0, 5).map((res: any, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => extractFromMcp(res.uri, undefined)}
+                      disabled={isProcessing}
+                      className="w-full text-left px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-sm flex flex-col gap-1 transition-colors"
+                    >
+                      <span className="font-medium text-neutral-900 flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
+                        {res.name || "Conversation"}
+                      </span>
+                      {res.description && <span className="text-xs text-neutral-500 line-clamp-1">{res.description}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {isProcessing && (
+                <div className="flex items-center justify-center gap-2 text-sm text-neutral-500 mt-4 p-4 border border-dashed rounded-lg bg-neutral-50">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Extracting & Analyzing...
+                </div>
+              )}
+            </section>
+          )}
 
           <section className={cn("bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm transition-opacity", !minutes && "opacity-50 pointer-events-none")}>
              <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
               <Users className="w-4 h-4 text-neutral-500" />
-              2. Distribution List
+              Distribution List
             </h2>
             
             <div className="space-y-4">

@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { registerOAuthClient, exchangeToken, connectMcp, extractMinutes, sendMinutesEmail, searchConversations } from "./lib/mcp.js";
+import { getStaffDirectory } from "./lib/staff.js";
 
 async function startServer() {
   const app = express();
@@ -43,6 +44,11 @@ async function startServer() {
       console.error("MCP connection error:", error);
       res.status(500).json({ error: error.message || "Failed to connect to MCP server" });
     }
+  });
+
+  // GET /api/staff
+  app.get("/api/staff", (req, res) => {
+    res.json({ staff: getStaffDirectory() });
   });
 
   // POST /api/mcp/conversations

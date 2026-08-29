@@ -5,13 +5,21 @@ import { cn } from "./lib/utils";
 import type { MeetingMinutes, ActionItem } from "./types";
 import { generateRandomString, generateCodeChallenge } from "./pkce";
 
-const ORG_CHART = {
-  "Engineering": ["Alice Smith", "Bob Jones", "Charlie Davis"],
-  "Marketing": ["Diana Prince", "Evan Wright"],
-  "HR": ["Fiona Gallagher", "George Costanza"],
-  "Management": ["Hannah Abbott", "Ian Malcolm"],
-  "Sales": ["Jack Black", "Karen White"]
-};
+interface StaffMember {
+  name: string;
+  dept: string;
+  email: string;
+}
+
+function groupStaffByDept(staff: StaffMember[]): Record<string, StaffMember[]> {
+  const groups: Record<string, StaffMember[]> = {};
+  staff.forEach((s) => {
+    const dept = s.dept || "Other";
+    if (!groups[dept]) groups[dept] = [];
+    groups[dept].push(s);
+  });
+  return groups;
+}
 
 export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,8 +41,24 @@ export default function App() {
   // Speaker Mapping State
   const [speakerMapping, setSpeakerMapping] = useState<Record<string, string>>({});
 
+  // Staff directory (served from STAFF_DIRECTORY env var, never committed to the repo)
+  const [staffDirectory, setStaffDirectory] = useState<StaffMember[]>([]);
+
+  // Mailing List State
+  const [emails, setEmails] = useState<string[]>([]);
+  const [emailInput, setEmailInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const isExchanging = useRef(false);
+
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((res) => res.json())
+      .then((data) => setStaffDirectory(data.staff || []))
+      .catch(() => setStaffDirectory([]));
+  }, []);
 
   useEffect(() => {
     // Check if returning from OAuth flow
@@ -179,6 +203,7 @@ export default function App() {
     setError(null);
     setMinutes(null);
     setSpeakerMapping({});
+    setSendSuccess(false);
 
     try {
       const res = await fetch("/api/mcp/extract-minutes", {
@@ -236,6 +261,67 @@ export default function App() {
         speakers: newSpeakers
       });
       setSpeakerMapping({});
+    }
+  };
+
+  const addEmail = (val: string) => {
+    const trimmed = val.trim();
+    if (trimmed && /^\S+@\S+\.\S+$/.test(trimmed)) {
+      if (!emails.includes(trimmed)) setEmails([...emails, trimmed]);
+      return true;
+    }
+    return false;
+  };
+
+  const handleAddEmail = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      if (addEmail(emailInput)) {
+        setEmailInput("");
+      } else {
+        setError("Please enter a valid email address.");
+      }
+    }
+  };
+
+  const addStaffToMailingList = (email: string) => {
+    if (email) addEmail(email);
+  };
+
+  const removeEmail = (emailToRemove: string) => {
+    setEmails(emails.filter((e) => e !== emailToRemove));
+  };
+
+  const sendEmail = async () => {
+    if (!minutes) return;
+    if (emails.length === 0) {
+      setError("Please add at least one email recipient.");
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+    setSendSuccess(false);
+
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          minutes,
+          recipients: emails,
+          subject: "Meeting Minutes & Action Items",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send email");
+
+      setSendSuccess(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -456,6 +542,86 @@ export default function App() {
             </section>
           )}
 
+          <section className={cn("bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm transition-opacity", !minutes && "opacity-50 pointer-events-none")}>
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-neutral-500" />
+              Mailing List
+            </h2>
+
+            <div className="space-y-3">
+              {staffDirectory.length > 0 && (
+                <div>
+                  <select
+                    value=""
+                    onChange={(e) => addStaffToMailingList(e.target.value)}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-shadow"
+                  >
+                    <option value="">Add from staff directory...</option>
+                    {Object.entries(groupStaffByDept(staffDirectory)).map(([dept, staff]) => (
+                      <optgroup key={dept} label={dept}>
+                        {staff.map((s) => (
+                          <option key={s.email} value={s.email} disabled={emails.includes(s.email)}>
+                            {s.name}{emails.includes(s.email) ? " (added)" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => {
+                    setEmailInput(e.target.value);
+                    setError(null);
+                  }}
+                  onKeyDown={handleAddEmail}
+                  placeholder="Or enter an email & press enter..."
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-shadow"
+                />
+              </div>
+
+              {emails.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {emails.map((email) => (
+                    <div key={email} className="inline-flex items-center gap-1.5 bg-neutral-100 px-2.5 py-1 rounded-md text-xs font-medium text-neutral-700">
+                      {email}
+                      <button onClick={() => removeEmail(email)} className="text-neutral-400 hover:text-neutral-900">
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={sendEmail}
+              disabled={isSending || emails.length === 0}
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white font-medium py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sending...
+                </>
+              ) : sendSuccess ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Sent Successfully
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  Send to {emails.length} Participants
+                </>
+              )}
+            </button>
+          </section>
+
           {error && (
             <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">
               {error}
@@ -526,10 +692,10 @@ export default function App() {
                               onChange={e => handleMappingChange(speaker, e.target.value)}
                             >
                               <option value="">Select Staff...</option>
-                              {Object.entries(ORG_CHART).map(([dept, staff]) => (
+                              {Object.entries(groupStaffByDept(staffDirectory)).map(([dept, staff]) => (
                                 <optgroup key={dept} label={dept}>
-                                  {staff.map(name => (
-                                    <option key={name} value={name}>{name}</option>
+                                  {staff.map(s => (
+                                    <option key={s.email} value={s.name}>{s.name}</option>
                                   ))}
                                 </optgroup>
                               ))}
